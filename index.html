@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Shopify Pinterest Feed App</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background: #f6f8fa;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 1rem;
+    }
+    input, button {
+      padding: 0.5rem;
+      margin: 0.25rem 0;
+      width: 100%;
+      max-width: 400px;
+    }
+    textarea {
+      width: 100%;
+      height: 200px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Shopify Pinterest Feed App</h1>
+
+  <label>Shopify Store Domain (e.g., yourstore.myshopify.com):</label><br>
+  <input type="text" id="storeDomain" placeholder="yourstore.myshopify.com"><br>
+
+  <label>Private Admin API Token:</label><br>
+  <input type="text" id="token" placeholder="shpat_xxx"><br>
+
+  <button onclick="generateFeed()">Generate Feed</button>
+
+  <h2>Feed Output (XML)</h2>
+  <textarea id="output" readonly></textarea>
+
+  <script src="config.js"></script>
+  <script>
+    async function generateFeed() {
+      const domain = document.getElementById('storeDomain').value.trim();
+      const token = document.getElementById('token').value.trim();
+      const output = document.getElementById('output');
+
+      if (!domain || !token) {
+        alert("Please enter both your store domain and API token.");
+        return;
+      }
+
+      output.value = "Generating feed...";
+
+      const endpoint = `https://${domain}/admin/api/2023-10/products.json?limit=250`;
+
+      try {
+        const response = await fetch(endpoint, {
+          headers: {
+            'X-Shopify-Access-Token': token,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+
+        if (!data.products) throw new Error("No products returned.");
+
+        const xmlItems = data.products.map(product => {
+          const images = (product.images || []).slice(0, 10).map(img => `<image_link>${img.src}</image_link>`).join('\n');
+          return `
+<item>
+  <id>${product.id}</id>
+  <title>${product.title}</title>
+  <description>${product.body_html.replace(/<[^>]*>/g, '')}</description>
+  <link>https://${domain}/products/${product.handle}</link>
+  ${images}
+</item>`;
+        }).join('\n');
+
+        const feed = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+  <title>${domain} Product Feed</title>
+  <link>https://${domain}</link>
+  <description>Shopify Product Feed</description>
+  ${xmlItems}
+</channel>
+</rss>`;
+
+        output.value = feed;
+
+      } catch (err) {
+        console.error(err);
+        output.value = "Error generating feed: " + err.message;
+      }
+    }
+  </script>
+</body>
+</html>
